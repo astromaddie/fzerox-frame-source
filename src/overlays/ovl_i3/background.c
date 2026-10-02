@@ -1117,6 +1117,123 @@ void Background_UpdateCloudVtx(Vtx* vtx, Background* background, Camera* camera,
 extern GfxPool D_1000000;
 extern Mtx D_2000000[];
 
+#ifdef PORT
+/* VR (port/vr/gdx_openxr.cpp): the venue floor, skybox and clouds are quads placed in front of the
+   game camera and sized to its field of view, so in a headset they end at the edge of the game's
+   frustum and vanish when the viewer turns their head. A stereo replay instead rebuilds camera 0's
+   28 backdrop vertices for each eye, from that eye's world position, forward and up vectors and its
+   field of view (half-angle tangents), by running the same per-camera computation as
+   Background_Update on COPIES of the background and camera. Nothing here writes game state: only
+   gGfxPool->unk_29B48[0..27], which the bridge saves before the first eye and restores after the
+   last, so the pool is byte-identical when control returns to the game. */
+static Vtx sGdxVrSavedBackgroundVtx[28];
+
+void gdx_vr_background_vtx_save(void) {
+    s32 i;
+
+    for (i = 0; i < 28; i++) {
+        sGdxVrSavedBackgroundVtx[i] = gGfxPool->unk_29B48[i];
+    }
+}
+
+void gdx_vr_background_vtx_restore(void) {
+    s32 i;
+
+    for (i = 0; i < 28; i++) {
+        gGfxPool->unk_29B48[i] = sGdxVrSavedBackgroundVtx[i];
+    }
+}
+
+void gdx_vr_background_vtx_build_eye(const f32 eyePos[3], const f32 forward[3], const f32 up[3], f32 tanHalfX,
+                                     f32 tanHalfY) {
+    Background background;
+    Camera camera;
+    Vtx* vtx;
+    f32 depthFovRatio;
+    f32 norm;
+    f32 xRange;
+    f32 zRange;
+    f32 xOffset;
+    f32 zOffset;
+
+    if (sBackgroundCount <= 0 || tanHalfX <= 0.0f || tanHalfY <= 0.0f) {
+        return;
+    }
+    background = sBackgrounds[0];
+    camera = gCameras[0];
+
+    camera.eye.x = eyePos[0];
+    camera.eye.y = eyePos[1];
+    camera.eye.z = eyePos[2];
+    camera.basis.x.x = forward[0];
+    camera.basis.x.y = forward[1];
+    camera.basis.x.z = forward[2];
+    camera.basis.y.x = up[0];
+    camera.basis.y.y = up[1];
+    camera.basis.y.z = up[2];
+    /* basis.z = up x forward, as the game builds it. */
+    camera.basis.z.x = (up[1] * forward[2]) - (up[2] * forward[1]);
+    camera.basis.z.y = (up[2] * forward[0]) - (up[0] * forward[2]);
+    camera.basis.z.z = (up[0] * forward[1]) - (up[1] * forward[0]);
+    camera.at.x = eyePos[0] + forward[0];
+    camera.at.y = eyePos[1] + forward[1];
+    camera.at.z = eyePos[2] + forward[2];
+    norm = sqrtf(SQ(forward[0]) + SQ(forward[2]));
+    if (norm > 0.0001f) {
+        camera.xzNormalizedX = forward[0] / norm;
+        camera.xzNormalizedZ = forward[2] / norm;
+    }
+    /* A centred, square-pixel frustum: the eye's own extents are covered by the margin below. */
+    camera.frustrumCenterX = 0.0f;
+    camera.frustrumCenterY = 0.0f;
+    camera.fovScaleX = 1.0f;
+    camera.fovScaleY = 1.0f;
+
+    background.pos.x = camera.eye.x + (camera.xzNormalizedX * sBackgroundScale);
+    background.pos.z = camera.eye.z + (camera.xzNormalizedZ * sBackgroundScale);
+    depthFovRatio = tanHalfX;
+    background.aspectRatio = tanHalfY / tanHalfX;
+    /* 15% margin past the eye's widest half-angle, so the quads overscan the eye frustum. */
+    background.horizontalRange = (background.scrollDepth + sBackgroundScale) * depthFovRatio * 1.15f;
+    background.verticalRange = background.horizontalRange * background.aspectRatio;
+
+    xOffset = background.scrollDepth * camera.xzNormalizedX;
+    zOffset = background.scrollDepth * camera.xzNormalizedZ;
+    xRange = background.horizontalRange * camera.xzNormalizedZ;
+    zRange = background.horizontalRange * (0.0f - camera.xzNormalizedX);
+
+    vtx = &gGfxPool->unk_29B48[2 * 4];
+    Background_UpdateSkyboxVtx(vtx, &background, &camera, depthFovRatio);
+    vtx = &gGfxPool->unk_29B48[0 * 4];
+    Background_UpdateVenueFloorVtx(vtx, &background, &camera, xOffset, zOffset, 0.0f, 0.0f, xRange, zRange, 255, 0);
+    vtx = &gGfxPool->unk_29B48[1 * 4];
+    Background_UpdateVenueFloorVtx(vtx, &background, &camera, 0.0f, 0.0f, 0.0f - xOffset, 0.0f - zOffset, xRange,
+                                   zRange, 0, 255);
+
+    if (sCloudCount > 0) {
+        f32 cloudHeightAboveEye = (background.pos.y + background.cloudScroll.relativeBackgroundHeight) - camera.eye.y;
+        f32 cloudTransparencyStrength;
+        bool usingHeightRelativeToEye;
+
+        if (cloudHeightAboveEye != 0.0f) {
+            cloudTransparencyStrength = ABS(cloudHeightAboveEye) / 100.0f;
+            if (cloudTransparencyStrength > 1.0f) {
+                cloudTransparencyStrength = 1.0f;
+            }
+            usingHeightRelativeToEye = cloudHeightAboveEye > 0.0f;
+            vtx = &gGfxPool->unk_29B48[3 * 4];
+            Background_UpdateCloudVtx(vtx, &background, &camera, &background.cloudScroll, xOffset, zOffset, 0.0f,
+                                      0.0f, xRange, zRange, 255, ((1.0f - cloudTransparencyStrength) * 255.0f),
+                                      usingHeightRelativeToEye);
+            vtx = &gGfxPool->unk_29B48[4 * 4];
+            Background_UpdateCloudVtx(vtx, &background, &camera, &background.cloudScroll, 0.0f, 0.0f,
+                                      0.0f - xOffset, 0.0f - zOffset, xRange, zRange,
+                                      ((1.0f - cloudTransparencyStrength) * 255.0f), 255, usingHeightRelativeToEye);
+        }
+    }
+}
+#endif
+
 Gfx* Background_Draw(Gfx* gfx, s32 cameraIndex, s32 scissorBoxType) {
     CourseSkyboxes* skybox;
     Camera* camera = &gCameras[cameraIndex];

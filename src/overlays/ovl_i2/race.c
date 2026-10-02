@@ -250,7 +250,18 @@ Gfx* Race_Draw(Gfx* gfx) {
             gSPMatrix(gfx++, &D_1000000.unk_20208[0], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
             gfx = Camera_Draw(gfx, SCISSOR_BOX_FULL_SCREEN, 0);
             gfx = Racer_Draw(gfx, 0);
+#ifdef PORT
+            {
+                /* FINISH / result text belongs on the VR HUD layer (port/decomp_port.c). */
+                extern Gfx* gdx_vr_hud_sprites_begin(Gfx * gfx);
+                extern Gfx* gdx_vr_hud_sprites_end(Gfx * gfx);
+                gfx = gdx_vr_hud_sprites_begin(gfx);
+                gfx = Menus_Player1SpecialDraw(gfx, 0);
+                gfx = gdx_vr_hud_sprites_end(gfx);
+            }
+#else
             gfx = Menus_Player1SpecialDraw(gfx, 0);
+#endif
             break;
         case 2:
             gSPPerspNormalize(gfx++, gCameras[0].perspectiveScale);
@@ -296,5 +307,12 @@ Gfx* Race_Draw(Gfx* gfx) {
             break;
     }
 
+#ifdef PORT
+    {
+        /* VR HUD split marker; emits nothing unless VR was requested (port/decomp_port.c). */
+        extern Gfx* gdx_vr_hud_marker(Gfx * gfx);
+        gfx = gdx_vr_hud_marker(gfx);
+    }
+#endif
     return Menus_Draw(gfx);
 }

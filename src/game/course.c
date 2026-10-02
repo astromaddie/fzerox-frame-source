@@ -4622,6 +4622,7 @@ Gfx* Course_Draw(Gfx* gfx, s32 cameraIndex) {
     // bit-identical.
     f32 gdxFarRenderDistanceScale;
     f32 gdxCullX;
+    extern int gGdxVrWideCull; /* port/decomp_port.c */
 #endif
 
     camera = &gCameras[cameraIndex];
@@ -4703,6 +4704,20 @@ Gfx* Course_Draw(Gfx* gfx, s32 cameraIndex) {
                        sp60.m[3][2];
 
 #ifdef PORT
+        /* VR stereo (port/vr): the viewer can look anywhere around the game camera, so a chunk is
+           kept whenever it lies within the far render distance of the camera in any direction,
+           and the eye projections do the real frustum rejection. depth (above) still orders the
+           chunk groups. gGdxVrWideCull is 0 outside VR, leaving the stock test below. */
+        if (gGdxVrWideCull) {
+            f32 vrDx = chunk->pos.x - camera->eye.x;
+            f32 vrDy = chunk->pos.y - camera->eye.y;
+            f32 vrDz = chunk->pos.z - camera->eye.z;
+            f32 vrFar = sCourseFarRenderDistance * gdxFarRenderDistanceScale;
+
+            chunk->drawState = ((SQ(vrDx) + SQ(vrDy) + SQ(vrDz)) <= SQ(vrFar)) ? 1 : 0;
+            chunk++;
+            continue;
+        }
         if ((chunk->depth < 0.0f) || ((sCourseFarRenderDistance * gdxFarRenderDistanceScale) < chunk->depth)) {
 #else
         if ((chunk->depth < 0.0f) || (sCourseFarRenderDistance < chunk->depth)) {

@@ -15,6 +15,14 @@
 #include ASSET_HEADER(machine_models.h)
 
 #ifdef PORT
+/* port/decomp_port.c: VR sprite markers (no-ops unless VR was requested). */
+extern Gfx* gdx_vr_world_sprite_begin(Gfx* gfx, f32 x, f32 y, f32 z, f32 pivotX, f32 pivotY, f32 width, f32 height);
+extern Gfx* gdx_vr_world_sprite_end(Gfx* gfx);
+extern Gfx* gdx_vr_hud_sprites_begin(Gfx* gfx);
+extern Gfx* gdx_vr_hud_sprites_end(Gfx* gfx);
+#endif
+
+#ifdef PORT
 extern int CVarGetInteger(const char* name, int defaultValue); // libultraship consolevariablebridge.h
 
 // Emits the menu's packed 0xRRGGBB effect-color override when set (>= 0), else stock.
@@ -5907,6 +5915,24 @@ Gfx* Racer_Draw(Gfx* gfx, s32 playerIndex) {
         for (racer = sLastRacer; racer >= gRacers; racer--) {
             racer->machineLod = racer->unk_2B2 = racer->unk_2B3 = 0;
             if (racer->stateFlags & RACER_STATE_ACTIVE) {
+#ifdef PORT
+                /* VR stereo (port/vr): reject machines by distance from the camera only, never by the
+                   game camera's frustum, and pick the LOD by that distance. */
+                {
+                    extern int gGdxVrWideCull; /* port/decomp_port.c */
+                    if (gGdxVrWideCull) {
+                        f32 vrDx = racer->segmentPositionInfo.pos.x - camera->eye.x;
+                        f32 vrDy = racer->segmentPositionInfo.pos.y - camera->eye.y;
+                        f32 vrDz = racer->segmentPositionInfo.pos.z - camera->eye.z;
+
+                        temp_fa0 = sqrtf(SQ(vrDx) + SQ(vrDy) + SQ(vrDz));
+                        if (temp_fa0 > 2500.0f) {
+                            continue;
+                        }
+                        goto gdx_vr_racer_visible;
+                    }
+                }
+#endif
                 temp_fa0 = ((sp580.m[0][2] * racer->segmentPositionInfo.pos.x) +
                             (sp580.m[1][2] * racer->segmentPositionInfo.pos.y) +
                             (sp580.m[2][2] * racer->segmentPositionInfo.pos.z)) +
@@ -5940,6 +5966,7 @@ Gfx* Racer_Draw(Gfx* gfx, s32 playerIndex) {
                 }
 
 #ifdef PORT
+            gdx_vr_racer_visible:
                 if (gdxForceMaxMachineLod) {
                     racer->machineLod = 1;
                 } else
@@ -7238,8 +7265,14 @@ block_115:
 
                     var_s7 = ((s32) ((camera->currentVpScaleX * sp56C) + camera->currentVpTransX + 0.5f) - 12) << 2;
                     sp5C4 = ((s32) ((-camera->currentVpScaleY * sp568) + camera->currentVpTransY + 0.5f) - 30) << 2;
+#ifdef PORT
+                    gfx = gdx_vr_world_sprite_begin(gfx, temp_fs4, temp_fs5, sp54C, 12.0f, 30.0f, 24.0f, 30.0f);
+#endif
                     gSPScisTextureRectangle(gfx++, var_s7, sp5C4, var_s7 + (24 * 4 - 1), sp5C4 + (30 * 4 - 1), 0, 0, 0,
                                             1 << 10, 1 << 10);
+#ifdef PORT
+                    gfx = gdx_vr_world_sprite_end(gfx);
+#endif
                 } else {
                     gDPLoadTextureBlock(gfx++, sPositionMPMarkerTexs[var_s3], G_IM_FMT_RGBA, G_IM_SIZ_16b, 16, 16, 0,
                                         G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK,
@@ -7247,8 +7280,14 @@ block_115:
 
                     var_s7 = ((s32) ((camera->currentVpScaleX * sp56C) + camera->currentVpTransX + 0.5f) - 8) << 2;
                     sp5C4 = ((s32) ((-camera->currentVpScaleY * sp568) + camera->currentVpTransY + 0.5f) - 16) << 2;
+#ifdef PORT
+                    gfx = gdx_vr_world_sprite_begin(gfx, temp_fs4, temp_fs5, sp54C, 8.0f, 16.0f, 16.0f, 16.0f);
+#endif
                     gSPScisTextureRectangle(gfx++, var_s7, sp5C4, var_s7 + (16 * 4 - 1), sp5C4 + (16 * 4 - 1), 0, 0, 0,
                                             1 << 10, 1 << 10);
+#ifdef PORT
+                    gfx = gdx_vr_world_sprite_end(gfx);
+#endif
                 }
             }
 
@@ -7288,14 +7327,23 @@ block_115:
 
                 var_s7 = ((s32) ((camera->currentVpScaleX * sp56C) + camera->currentVpTransX + 0.5f) - 0x10) << 2;
                 sp5C4 = ((s32) ((-camera->currentVpScaleY * sp568) + camera->currentVpTransY + 0.5f) - 0x10) << 2;
+#ifdef PORT
+                gfx = gdx_vr_world_sprite_begin(gfx, temp_fs4, temp_fs5, sp54C, 16.0f, 16.0f, 32.0f, 16.0f);
+#endif
                 gSPScisTextureRectangle(gfx++, var_s7, sp5C4, var_s7 + (32 * 4 - 1), sp5C4 + (16 * 4 - 1), 0, 0, 0,
                                         1 << 10, 1 << 10);
+#ifdef PORT
+                gfx = gdx_vr_world_sprite_end(gfx);
+#endif
             }
             gDPPipeSync(gfx++);
         }
 
         gDPSetDepthSource(gfx++, G_ZS_PIXEL);
 
+#ifdef PORT
+        gfx = gdx_vr_hud_sprites_begin(gfx); /* the racer-behind warning belongs on the VR HUD layer */
+#endif
         if (playerRacer->distanceFromRacerBehind < 3000.0f) {
             do {
                 if ((playerRacer->position != playerRacer->racerBehind->position - 1) ||
@@ -7386,6 +7434,9 @@ block_115:
                 }
             } while (false);
         }
+#ifdef PORT
+        gfx = gdx_vr_hud_sprites_end(gfx);
+#endif
     }
 
     return gfx;
