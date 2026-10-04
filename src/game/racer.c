@@ -6330,7 +6330,22 @@ block_115:
         gSPMatrix(gfx++, &D_1000000.unk_20308[racer->id], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
         gSPDisplayList(gfx++, D_800CDD38[racer->machineIndex]);
         gDPSetEnvColor(gfx++, racer->bodyR, racer->bodyG, racer->bodyB, 255);
+#ifdef PORT
+        {
+            /* VR cabin cockpit (port/decomp_port.c): the followed racer's hull is cut around a cabin
+               drawn in its place, measured on LOD1. -1 (no cabin) outside VR. */
+            extern s32 gdx_vr_cabin_begin(Gfx** gfx, const Racer* racer);
+            extern Gfx* gdx_vr_cabin_end(Gfx* gfx, const Racer* racer, s32 machine, Gfx* setupDl);
+            const s32 gdxCabin = gdx_vr_cabin_begin(&gfx, racer);
+
+            gSPDisplayList(gfx++, D_800CDDB0[racer->machineIndex * 6 + ((gdxCabin >= 0) ? 0 : racer->machineLod - 1)]);
+            if (gdxCabin >= 0) {
+                gfx = gdx_vr_cabin_end(gfx, racer, gdxCabin, (gGameMode == GAMEMODE_GP_END_CS) ? D_303A5F8 : D_303A6A8);
+            }
+        }
+#else
         gSPDisplayList(gfx++, D_800CDDB0[racer->machineIndex * 6 + racer->machineLod - 1]);
+#endif
     }
     if (gGameMode == GAMEMODE_GP_END_CS) {
         gSPDisplayList(gfx++, D_90186C8);
