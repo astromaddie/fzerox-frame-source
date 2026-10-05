@@ -36,7 +36,13 @@ s32 EADDemo_Update(void) {
         return gGameMode;
     }
     Controller_SetGlobalInputs(&gSharedController);
+#ifdef PORT
+    /* A skips the intro too: on the N64 only Start did, and players press A first and think the
+       controller is not picked up (VR wear feedback 2026-10-05). The title screen takes both. */
+    if (gInputButtonPressed & (BTN_START | BTN_A)) {
+#else
     if (gInputButtonPressed & BTN_START) {
+#endif
         Audio_DDBgmStop();
         D_800CCFBC = 1;
         return gPostEadDemoGameMode;
