@@ -4760,6 +4760,14 @@ void Racer_UpdateFromControls(Racer* racer, Controller* controller) {
         racer->modelPos.y += ((f32) (Math_Rand1() % 65536) * (1.8f / 65535.0f)) - 0.9f;
         racer->modelPos.z += ((f32) (Math_Rand2() % 65536) * (1.8f / 65535.0f)) - 0.9f;
     }
+#ifdef PORT
+    {
+        /* VR cabin cockpit (port/decomp_port.c): the ride shake just added, so the cabin racer can be
+           drawn without it. */
+        extern void gdx_vr_note_ride_shake(const Racer* racer);
+        gdx_vr_note_ride_shake(racer);
+    }
+#endif
 
     if (racer->unk_27C != 0) {
         if (racer->attackState == ATTACK_STATE_SIDE) {
@@ -6191,10 +6199,18 @@ Gfx* Racer_Draw(Gfx* gfx, s32 playerIndex) {
         }
         if (racer->machineLod < 6) {
             if (!racer->attackHighlightMatrixInit) {
+#ifdef PORT
+                extern const Vec3f* gdx_vr_racer_model_pos(const Racer* racer);
+                Matrix_ScaleFrom3DMatrix(
+                    &gGfxPool->unk_21208[racer->id], NULL, racer->attackHighlightScale * D_800CE748,
+                    racer->attackHighlightScale * D_800CE74C, racer->attackHighlightScale * D_800CE750,
+                    &racer->modelBasis, (Vec3f*) gdx_vr_racer_model_pos(racer));
+#else
                 Matrix_ScaleFrom3DMatrix(
                     &gGfxPool->unk_21208[racer->id], NULL, racer->attackHighlightScale * D_800CE748,
                     racer->attackHighlightScale * D_800CE74C, racer->attackHighlightScale * D_800CE750,
                     &racer->modelBasis, &racer->modelPos);
+#endif
                 racer->attackHighlightMatrixInit = true;
             }
             gSPMatrix(gfx++, &D_1000000.unk_21208[racer->id], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
@@ -6320,8 +6336,16 @@ block_115:
             continue;
         }
         if (!racer->modelMatrixInit) {
+#ifdef PORT
+            /* The VR cabin racer is placed without its ride shake (port/decomp_port.c), and so are its
+               booster flames, which read racer->modelMatrix. */
+            extern const Vec3f* gdx_vr_racer_model_pos(const Racer* racer);
+            Matrix_ScaleFrom3DMatrix(&gGfxPool->unk_20308[racer->id], &racer->modelMatrix, D_800CE748, D_800CE74C,
+                                     D_800CE750, &racer->modelBasis, (Vec3f*) gdx_vr_racer_model_pos(racer));
+#else
             Matrix_ScaleFrom3DMatrix(&gGfxPool->unk_20308[racer->id], &racer->modelMatrix, D_800CE748, D_800CE74C,
                                      D_800CE750, &racer->modelBasis, &racer->modelPos);
+#endif
             racer->modelMatrixInit = true;
         }
         if (racer->stateFlags & RACER_STATE_CRASHED) {
