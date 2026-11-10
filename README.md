@@ -1,3 +1,28 @@
+## Steam Frame Dependency
+
+This is the game-source dependency for my
+[F-Zero X VR port](https://github.com/astromaddie/fzerox-vr).
+The `vr/openxr-m0` branch adds port-gated stereo-rendering hooks and cockpit
+integration. It lives in the parent checkout's `decomp/` directory.
+
+For the complete Linux ARM64 application, use the parent checkout and its
+[Steam Frame build and install guide](https://github.com/astromaddie/fzerox-vr/blob/vr/openxr-m0/docs/STEAM-FRAME-BUILD-INSTALL.md):
+
+```sh
+git clone --recurse-submodules --branch vr/openxr-m0 https://github.com/astromaddie/fzerox-vr.git
+cd fzerox-vr
+git submodule update --init --recursive
+```
+
+The parent records the exact dependency commits. Keep those revisions together;
+don't use `git submodule update --remote` for a reproducible build. Its Docker
+toolchain builds the ARM64 app and ROM-free package. Playing needs your own
+supported game, Expansion Kit and IPL data, as described in the parent guide.
+
+The upstream README follows.
+
+---
+
 [![Discord Channel][discord-badge]][discord]
 
 [![US Bytes Progress]](https://decomp.dev/inspectredc/fzerox/us) [![US Functions Progress]](https://decomp.dev/inspectredc/fzerox/us)
